@@ -53,6 +53,33 @@ pipeline {
                 '''
             }
         }
+        
+        stage('SonarQube Analysis') {
+            when {
+                expression { return env.CHANGE_ID == null } // éviter sur PR si tu veux
+            }
+            steps {
+                withSonarQubeEnv('sonarqube') { // nom de ton serveur Sonar dans Jenkins
+                    sh 'mvn sonar:sonar'
+                }
+            }
+        }
+
+        // stage('Quality Gate') {
+        //     when {
+        //         expression { return env.CHANGE_ID == null }
+        //     }
+        //     steps {
+        //         script {
+        //             timeout(time: 5, unit: 'MINUTES') {
+        //                 def qg = waitForQualityGate()
+        //                 if (qg.status != 'OK') {
+        //                     error "Qualité non conforme : ${qg.status}"
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         stage('Build Docker Image') {
             steps {
