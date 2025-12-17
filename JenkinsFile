@@ -1,0 +1,131 @@
+pipeline {
+    agent any
+
+    environment {
+        PROJECT_ID   = "springbootmicroservicetp"
+        REGION       = "europe-west1"
+        REPO         = "springbootmicroserve-repo"
+        SERVICE_NAME = "runner-ms"
+
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        IMAGE = "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE_NAME}:${IMAGE_TAG}"
+    }
+
+    stages {
+
+        // stage('Debug PATH') {
+        //     steps {
+        //         bat '''
+        //             @echo on
+        //             echo ===== PATH =====
+        //             echo %PATH%
+        //             echo.
+        //             echo ===== where docker =====
+        //             where docker
+        //             echo.
+        //             echo ===== where gcloud =====
+        //             where gcloud
+        //             echo.
+        //             echo ===== where mvn =====
+        //             where mvn
+        //             echo.
+        //             echo ===== versions =====
+        //             docker version
+        //             call gcloud --version
+        //             call mvn -version
+        //         '''
+        //     }
+        // }
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/MOHAMMED-BE/springboot-microservice.git'
+            }
+        }
+
+        stage('Build JAR (skip tests)') {
+            steps {
+                bat '''
+                    @echo on
+                    call mvn clean install -DskipTests
+                    dir runner-ms\\target
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                bat '''
+                    @echo on
+                    echo Building image: %IMAGE%
+                    docker build -t %IMAGE% .
+                '''
+            }
+        }
+
+        stage('Authenticate & Push Image') {
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY_FILE')]) {
+                    bat '''
+                        @echo on
+                        echo Authenticating with service account...
+                        call gcloud auth activate-service-account --key-file="%GCP_KEY_FILE%"
+
+                        echo Setting project...
+                        call gcloud config set project %PROJECT_ID%
+
+                        echo Configuring docker auth for Artifact Registry...
+                        call gcloud auth configure-docker %REGION%-docker.pkg.dev --quiet
+
+                        echo Pushing image: %IMAGE%
+                        docker push %IMAGE%
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Cloud Run') {
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY_FILE')]) {
+                    bat '''
+                        @echo on
+                        echo Authenticating with service account...
+                        call gcloud auth activate-service-account --key-file="%GCP_KEY_FILE%"
+
+                        echo Setting project...
+                        call gcloud config set project %PROJECT_ID%
+
+                        echo Deploying to Cloud Run...
+                        call gcloud run deploy %SERVICE_NAME% ^
+                          --image %IMAGE% ^
+                          --region %REGION% ^
+                          --platform managed ^
+                          --allow-unauthenticated ^
+                          --port 8080
+
+                        echo Fetching service URL...
+                        call gcloud run services describe %SERVICE_NAME% ^
+                          --region %REGION% ^
+                          --platform managed ^
+                          --format="value(status.url)"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ DEPLOYMENT SUCCESSFUL"
+            echo "🚀 Cloud Run service: ${SERVICE_NAME}"
+            echo "🔖 Image: ${IMAGE}"
+        }
+        failure {
+            echo "❌ PIPELINE FAILED – Check logs"
+        }
+        always {
+            echo "Done."
+        }
+    }
+}
