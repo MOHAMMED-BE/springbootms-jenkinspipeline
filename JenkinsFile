@@ -31,15 +31,13 @@ pipeline {
         }
         
         stage('SonarQube Analysis') {
-            when { 
-                expression { return env.CHANGE_ID == null } 
-            }
+            when { expression { return env.CHANGE_ID == null } }
             steps {
                 bat """
-                    @echo on
-                    echo Sonar project key: %SERVICE_NAME%
+                @echo on
+                cd runner-ms
 
-                    call mvn -DskipTests sonar:sonar ^
+                call mvn -DskipTests sonar:sonar ^
                     -Dsonar.projectKey=%SERVICE_NAME% ^
                     -Dsonar.projectName=%SERVICE_NAME% ^
                     -Dsonar.host.url=http://<SONAR_HOST>:9000 ^
