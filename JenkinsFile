@@ -40,7 +40,7 @@ pipeline {
                 call mvn -DskipTests sonar:sonar ^
                     -Dsonar.projectKey=%SERVICE_NAME% ^
                     -Dsonar.projectName=%SERVICE_NAME% ^
-                    -Dsonar.host.url=http://<SONAR_HOST>:9000 ^
+                    -Dsonar.host.url=http://localhost:9000 ^
                     -Dsonar.token=%SONAR_TOKEN%
                 """
             }
